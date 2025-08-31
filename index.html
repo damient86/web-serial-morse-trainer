@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hardware Morse Trainer</title>
+  <style>
+    :root { --gap: 12px; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif; margin: 24px; color: #0f172a; }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .card { border: 1px solid #e5e7eb; border-radius: 16px; padding: 20px; box-shadow: 0 6px 24px rgba(0,0,0,.06); background: #fff; }
+    .row { display: flex; flex-wrap: wrap; gap: var(--gap); align-items: center; }
+    .row > * { margin: 4px 0; }
+    .btn { appearance: none; border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer; background: #111827; color: white; font-weight: 600; }
+    .btn.secondary { background: #475569; }
+    .btn.danger { background: #b91c1c; }
+    .btn.go { background: #06a800; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .sel, .input { padding: 8px 10px; border-radius: 10px; border: 1px solid #cbd5e1; }
+    .log { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+     background:#0b1020; color:#bfe6ff; border-radius: 12px; padding: 12px; height: 260px; overflow: auto; white-space: pre-wrap; }
+    .grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 16px; }
+    .hint { color:#475569; font-size: 14px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas; }
+    .preview { background:#f8fafc; border:1px dashed #cbd5e1; border-radius: 12px; padding: 10px; min-height: 100px; overflow:auto; white-space: pre-wrap; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; background:#f1f5f9; }
+  .grid .trainer { grid-row: span 2; }
+
+/* Dark mode stuff - dark mode toggle is at the bottom of app.js */
+:root[data-theme="dark"] body { background:#0b1020; color:#e5e7eb; }
+:root[data-theme="dark"] .card { background:#0f172a; border-color:#1e293b; box-shadow: 0 6px 24px rgba(0,0,0,.4); }
+:root[data-theme="dark"] .hint { color:#94a3b8; }
+:root[data-theme="dark"] .pill { background:#1f2937; color:#e5e7eb; }
+:root[data-theme="dark"] .sel,
+:root[data-theme="dark"] .input { background:#0b1020; color:#e5e7eb; border-color:#334155; }
+:root[data-theme="dark"] .btn { background:#374151; color:#fff; }
+:root[data-theme="dark"] .btn.secondary { background:#334155; }
+:root[data-theme="dark"] .btn.danger { background:#7f1d1d; }
+:root[data-theme="dark"] .btn.go { background:#004a11; }
+:root[data-theme="dark"] .log { background:#0a0f1f; color:#bfe6ff; }
+:root[data-theme="dark"] .preview { background:#0b1220; border-color:#334155; }
+
+  </style>
+  
+</head>
+<body>
+  <div class="wrap">
+    <button id="themeToggle" class="btn secondary"
+        style="position:fixed; top:16px; right:16px; z-index:10;">
+  Dark mode
+</button>
+
+    <h1 style="margin:0 0 8px 0;">Hardware Morse Trainer</h1>
+    <div class="hint">for Chromium-based browsers that support Web Serial.</div>
+
+
+
+    <div class="grid" style="margin-top:16px;">
+      <!-- Koch Trainer -->
+      <div class="card trainer">
+        <h3 style="margin-top:0;">Trainer</h3>
+        <div class="row">
+          <label>Lesson
+            <select id="lesson" class="sel" style="width:90px"></select>
+          </label>
+          <label>Words <input id="groups" class="input" type="number" min="1" value="20" style="width:90px"/></label>
+          <label>Letters per word <input id="groupLen" class="input" type="number" min="2" max="6" value="5" style="width:110px"/></label>
+        </div>
+        <div class="row">
+          <label>WPM <input id="wpm" class="input" type="number" min="5" max="40" value="20" style="width:90px"/></label>
+          <label>Effective WPM <input id="effWpm" class="input" type="number" min="5" max="20" value="12" style="width:130px"/></label>
+        </div>
+        <div class="row">
+          <button id="btnStart" class="btn go">Begin lesson</button>
+          <button id="btnStop" class="btn danger" disabled>Abort</button>
+          <button id="btnGenerate" class="btn secondary">Randomise lesson</button>
+        </div>
+        <!-- Hidden lesson with toggle -->
+        <details id="answerBox" style="margin-top:10px;">
+          <summary>Show lesson (spoiler)</summary>
+          <div id="preview" class="preview mono" title="Generated training text preview"></div>
+        </details>
+        <!-- Operator input and grading -->
+        <div class="row" style="margin-top:10px;">
+          <textarea id="operatorInput" class="input" placeholder="Type what you heard…" style="width:100%; height: 100px;"></textarea>
+        </div>
+        <div class="row" style="margin-top:8px; align-items:center;">
+          <button id="btnGrade" class="btn secondary">Grade lesson</button>
+          <span id="gradeResult" class="hint"></span>
+          
+ <div class="hint" style="flex-basis:100%;">Grading is case insensitive. Word spaces are graded.</div>
+
+        </div>
+      </div>
+
+    <!-- CONNECTION SETTINGS -->
+    <div class="card connection">
+      <h3 style="margin-top:0;">Connection Settings</h3>
+      <div class="row">
+        <button id="btnConnect" class="btn">Connect</button>
+        <button id="btnDisconnect" class="btn secondary" disabled>Disconnect</button>
+        <span class="pill" id="status">Idle</span>
+      </div>
+ <div class="row">
+  <details>
+    <summary>Advanced</summary>
+    <div style="margin-top:8px;">
+      <label>Baud
+        <select id="baud" class="sel">
+          <option>115200</option>
+          <option selected>9600</option>
+          <option>57600</option>
+          <option>19200</option>
+          <option>4800</option>
+        </select>
+      </label>
+    </div>
+  </details>
+
+  <label class="hint"><input type="checkbox" id="invert" />Invert serial pins</label>
+  <button id="btnDit" class="btn secondary">Test Dit</button>
+  <button id="btnDah" class="btn secondary">Test Dah</button>
+</div></div>
+      
+      <!-- CONSOLE -->
+      <div class="card">
+        <h3 style="margin-top:0;">Console</h3>
+        <!-- Hid the input functionality, wasn't needed -->
+        <div class="row" style="display:none">
+          <input id="tx" class="input" placeholder="Type to send… (Enter to send)" style="flex:1;" />
+          <button id="btnSend" class="btn">Send</button>
+        </div>
+        <div id="log" class="log" style="margin-top:12px;"></div>
+      </div>
+    </div>
+<!-- CHARACTER PRACTICE (place this above the Notes card) -->
+<div class="card" id="charTrainer" style="margin-top:16px;">
+  <h3 style="margin-top:0;">Character Practice</h3>
+  <div class="hint">Click a character to play it at the current WPM / Effective WPM.</div>
+  <div id="charPad" class="row" style="margin-top:8px; flex-wrap:wrap;"></div>
+</div>
+
+    <div class="card" style="margin-top:16px;">
+      <h3 style="margin-top:0;">Info</h3>
+        Please see the readme at <a href="https://github.com/damient86/web-serial-morse-trainer"target="_blank">github.com/damient86/web-serial-morse-trainer</a>
+      </ul>
+    </div>
+  </div>
+
+<script defer src="app.js">
+</script>
+</body>
+</html>
