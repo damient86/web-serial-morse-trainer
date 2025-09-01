@@ -26,7 +26,7 @@
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; background:#f1f5f9; }
   .grid .trainer { grid-row: span 2; }
 
-  /* Stuff for tab switching */
+  /* Tab switching CSS */
   .tabs { display:flex; gap:8px; border-bottom:1px solid #e5e7eb; margin-top:16px; }
 .tab { appearance:none; border:0; background:#f1f5f9; padding:8px 12px; border-radius:8px 8px 0 0; cursor:pointer; font-weight:600; }
 .tab[aria-selected="true"] { background:#fff; border:1px solid #e5e7eb; border-bottom-color:#fff; }
@@ -39,7 +39,7 @@
           transform: scale(1.02); }
 
 
-/* Dark mode stuff - dark mode toggle is at the bottom of app.js */
+/* Dark mode settings */
 :root[data-theme="dark"] body { background:#0b1020; color:#e5e7eb; }
 :root[data-theme="dark"] .card { background:#0f172a; border-color:#1e293b; box-shadow: 0 6px 24px rgba(0,0,0,.4); }
 :root[data-theme="dark"] .hint { color:#94a3b8; }
@@ -124,6 +124,7 @@
     <div id="led" class="led" title="Key state"></div>
     <div>
       <div class="mono" id="keyState">Key: UP</div>
+      <!-- Hid the line below, was cluttering the UI and info is in doco -->
       <!-- <div class="hint">Input: DSR (pin 6), common: DTR (pin 4)</div> -->
        
     </div>
@@ -131,7 +132,7 @@
 
   <div class="row" style="margin-top:8px;">
     <label class="hint"><input type="checkbox" id="loopToSounder" />
-      Local sounder loopback
+      Enable local sounder loopback
     </label>
     
   </div>
@@ -147,7 +148,7 @@
   <div style="height: var(--gap);"></div>
 
   <div class="hint" style="margin-top:6px; flex-basis:100%;">
-  Uses WPM / Effective WPM from the Trainer tab. Please adjust there.
+  Uses WPM settings from the Trainer tab. Please adjust there.
 </div>
 
 </div>
@@ -197,7 +198,7 @@
 <!-- CHARACTER PRACTICE -->
 <div class="card" id="charTrainer" style="margin-top:16px;">
   <h3 style="margin-top:0;">Character Practice</h3>
-  <div class="hint">Click a character to play it at the current WPM / Effective WPM.</div>
+  <div class="hint">Click a character to play it at the current WPM.</div>
   <div id="charPad" class="row" style="margin-top:8px; flex-wrap:wrap;"></div>
 </div>
 

@@ -1,5 +1,6 @@
 // ===================== Training data =====================
-// ask me about Koch training
+// I will refer to the training pattern as Koch which seems to be the standardised name
+// for this methodology. I think this is acceptable - it's not referenced in the UI.
 const KOCH_SEQUENCE = [
   'K','M','U','R','E','S','N','A','P','T',
   'L','W','I','.', 'J','Z','=', 'F','O','Y',
@@ -7,7 +8,7 @@ const KOCH_SEQUENCE = [
   '8','B','?','4','7','C','1','D','6','0','X'
 ];
 function kochChars(lesson){
-  const count = Math.min(KOCH_SEQUENCE.length, Math.max(1, lesson+1)); // LCWO style
+  const count = Math.min(KOCH_SEQUENCE.length, Math.max(1, lesson+1));
   return KOCH_SEQUENCE.slice(0, count);
 }
 function randomGroups(lesson, groups, groupLen){
@@ -34,7 +35,7 @@ async function connect(){
     port = await navigator.serial.requestPort();
     const baud = parseInt($('#baud').value,10) || 9600;
     await port.open({ baudRate: baud });
-    // Hold DTR high for bias; set RTS to idle (respect invert)
+    // Hold DTR(4)[key] high for bias; set RTS(7)[sounder] to idle (respect invert)
     try { await port.setSignals({ dataTerminalReady: true, requestToSend: invertOut() }); } catch(e) { console.warn('setSignals not supported?', e); }
 
     // Console pipelines
@@ -133,7 +134,7 @@ async function sendMorseText(text, wpm, eff){
   $('#btnStop').disabled = true;
 }
 
-// ===================== UI wiring =====================
+// ===================== UI wiring and setup =====================
 $('#btnConnect').addEventListener('click', connect);
 $('#btnDisconnect').addEventListener('click', disconnect);
 $('#btnSend').addEventListener('click', ()=> sendLine($('#tx').value));
@@ -177,7 +178,7 @@ $('#btnStart').addEventListener('click', async ()=>{
   const eff = parseInt($('#effWpm').value,10)||12;
   const text = ($('#preview').textContent.trim() || randomGroups(parseInt($('#lesson').value,10), parseInt($('#groups').value,10), parseInt($('#groupLen').value,10)));
 
-  // 5-second countdown printed to the on-page Console
+  // 5-second countdown printed to the on-page Console -- might change this to 3 later...
   for (let t = 5; t >= 1; t--) {
     log(`Test begins in ${t}`, '•');
     await sleep(1000);
@@ -205,7 +206,7 @@ $('#btnStop').addEventListener('click', ()=>{ stopFlag = true; rtsUp(); log('Tes
     sel.value = '1';
   }
 })();
-
+// ===================== Grading Mechanism =====================
 // Grading (compare operator input to hidden preview)
 // Gives a percentage - specifically ignores case
 function normalizeForGrade(s){
@@ -255,7 +256,8 @@ document.getElementById('btnGrade').addEventListener('click', gradeNow);
 // Initial preview
 regenerate();
 
-// Play a single character using existing timing & keying (no logic changes)
+// ===================== Character Player =====================
+// Play a single character using set timing
 async function playChar(ch){
   if(!port){ alert('Connect serial first.'); return; }
   const wpm = parseInt($('#wpm').value,10) || 20;
@@ -267,13 +269,13 @@ async function playChar(ch){
   await sleep(t.charGap - t.intra); // standard char gap
 }
 
-// Build buttons for every character in the current lesson/test set
+// Build buttons for every character in the current lesson set
 function renderCharPad(){
   const pad = document.getElementById('charPad');
   if (!pad) return;
   pad.innerHTML = '';
   const lesson = parseInt($('#lesson').value, 10);
-  const chars = kochChars(lesson);      // uses your existing lesson order
+  const chars = kochChars(lesson);      // maintain lesson order
   for (const ch of chars) {
     if (ch === ' ') continue;           // skip space
     const btn = document.createElement('button');
@@ -290,11 +292,11 @@ document.addEventListener('DOMContentLoaded', renderCharPad);
 $('#lesson').addEventListener('input', renderCharPad);
 $('#btnGenerate').addEventListener('click', renderCharPad);
 
-// EVERYTHING BELOW THIS POINT IS TO DO WITH THE TRANSMIT TRAINER
-// --- Key Monitor (DSR) & optional loopback (RTS) ---
+// ===================== Transmit Trainer =====================
+// --- Key Monitor DSR(6) & optional loopback to local sounder RTS(7) ---
 let monitorRunning = false, lastDSR = null;
 
-// Build a reverse Morse map once (prefer your existing MORSE if available)
+// Reverse Morse map -- this can probably be removed for a global table
 function getMorseReverse(){
   if (window.__MORSE_REV__) return window.__MORSE_REV__;
   const src = (typeof MORSE !== 'undefined') ? MORSE : {
@@ -411,13 +413,13 @@ async function startMonitor(){
   log('Key monitor stopped','•');
 }
 
-// --- Tabs: switch between Trainer and Transmit (left column) ---
+// ===================== UI Tab functionality =====================
 function showTrainer(){
   const a = document.getElementById('card-trainer');
   const b = document.getElementById('card-transmit');
   if (a) a.hidden = false;
   if (b) b.hidden = true;
-  monitorRunning = false; // stop DSR polling when leaving Transmit
+  monitorRunning = false; // stop key polling when leaving Transmit tab - DSR(6)
   // update tab aria-selected
   document.getElementById('tabTrainer')?.setAttribute('aria-selected','true');
   document.getElementById('tabTransmit')?.setAttribute('aria-selected','false');
@@ -430,7 +432,7 @@ function showTransmit(){
   const b = document.getElementById('card-transmit');
   if (a) a.hidden = true;
   if (b) b.hidden = false;
-  startMonitor(); // begin DSR polling when entering Transmit
+  startMonitor(); // begin key polling when entering Transmit tab - DSR(6)
   // update tab aria-selected
   document.getElementById('tabTrainer')?.setAttribute('aria-selected','false');
   document.getElementById('tabTransmit')?.setAttribute('aria-selected','true');
@@ -450,14 +452,14 @@ document.getElementById('rxClear')?.addEventListener('click', ()=>{
   rxLastGapWordAdded = false;
 });
 
-
-// Dark mode stuff
+// ===================== Dark Mode UI =====================
 (function(){
   const root = document.documentElement;
   const btn = document.getElementById('themeToggle');
   if (!btn) return;
 
-// Load saved choice (default to dark), removed read OS pref...
+// Load saved choice (default to dark)
+// Removed the functionality of reading OS preference for default dark override.
 const saved = localStorage.getItem('theme') || 'dark';
 root.setAttribute('data-theme', saved);
 
