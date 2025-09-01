@@ -50,6 +50,12 @@ async function connect(){
     log(`Port opened @ ${baud}`,'✔');
     readLoop();
 
+    //auto refresh for kicking off rx monitoring when on key tab
+
+    if (!document.getElementById('card-transmit')?.hidden) {
+  startMonitor();
+}
+
     navigator.serial.addEventListener('disconnect', e=>{
       if(port && e.port === port){ log('Serial device disconnected','⚠'); disconnect(); }
     });
@@ -65,6 +71,7 @@ async function readLoop(){
 }
 async function sendLine(s){ if(!writer) return; await writer.write(s+"\r\n"); log(s,'→'); }
 async function disconnect(){
+  monitorRunning = false;
   try{ if(reader){ await reader.cancel(); reader.releaseLock(); } }catch{}
   try{ if(writer){ await writer.close(); writer.releaseLock(); } }catch{}
   try{ if(port){ await port.close(); } }catch{}
@@ -282,6 +289,166 @@ function renderCharPad(){
 document.addEventListener('DOMContentLoaded', renderCharPad);
 $('#lesson').addEventListener('input', renderCharPad);
 $('#btnGenerate').addEventListener('click', renderCharPad);
+
+// EVERYTHING BELOW THIS POINT IS TO DO WITH THE TRANSMIT TRAINER
+// --- Key Monitor (DSR) & optional loopback (RTS) ---
+let monitorRunning = false, lastDSR = null;
+
+// Build a reverse Morse map once (prefer your existing MORSE if available)
+function getMorseReverse(){
+  if (window.__MORSE_REV__) return window.__MORSE_REV__;
+  const src = (typeof MORSE !== 'undefined') ? MORSE : {
+    'A':'.-','B':'-...','C':'-.-.','D':'-..','E':'.','F':'..-.','G':'--.',
+    'H':'....','I':'..','J':'.---','K':'-.-','L':'.-..','M':'--','N':'-.',
+    'O':'---','P':'.--.','Q':'--.-','R':'.-.','S':'...','T':'-','U':'..-',
+    'V':'...-','W':'.--','X':'-..-','Y':'-.--','Z':'--..',
+    '1':'.----','2':'..---','3':'...--','4':'....-','5':'.....',
+    '6':'-....','7':'--...','8':'---..','9':'----.','0':'-----',
+    '.':'.-.-.-', ',':'--..--', '?':'..--..', '/':'-..-.', '=':'-...-'
+  };
+  const rev = {};
+  for (const [ch, code] of Object.entries(src)) rev[code] = ch;
+  window.__MORSE_REV__ = rev;
+  return rev;
+}
+
+// Decoder state
+let rxPattern = '';            // accumulating .- for current character
+let rxLastEdgeTs = null;       // ms timestamp of last edge (UP↔DOWN)
+let rxLastGapWordAdded = false;
+
+// Append a decoded character (or '?') to the textarea
+function commitCharFromPattern(){
+  const rxEl = document.getElementById('rxText');
+  if (!rxEl || !rxPattern) return;
+  const MORSE_REV = getMorseReverse();
+  const ch = MORSE_REV[rxPattern] || '?';
+  rxEl.value += ch;
+  rxPattern = '';
+  rxLastGapWordAdded = false;  // allow a space after committing a char
+}
+
+// Ensure exactly one word-space when gap is long enough
+function ensureWordSpace(){
+  const rxEl = document.getElementById('rxText');
+  if (!rxEl || rxLastGapWordAdded) return;
+  const v = rxEl.value;
+  if (!v || v.endsWith(' ')) { rxLastGapWordAdded = true; return; }
+  rxEl.value += ' ';
+  rxLastGapWordAdded = true;
+}
+
+async function startMonitor(){
+  if (!port || monitorRunning) return;
+  const ledEl = document.getElementById('led');
+  const keyStateEl = document.getElementById('keyState');
+  if (!ledEl || !keyStateEl) return; // transmit card not visible in DOM
+
+  monitorRunning = true;
+  log('Key monitor started','•');
+  while (monitorRunning && port){
+  try{
+    // Timing based on current UI settings (falls back safely)
+    const wpm = parseInt(document.getElementById('wpm')?.value, 10) || 20;
+    const eff = parseInt(document.getElementById('effWpm')?.value, 10) || wpm;
+    const t = typeof timings === 'function'
+      ? timings(wpm, eff)
+      : { dit: 1200/Math.max(1,wpm), dah: 3*(1200/Math.max(1,wpm)), intra: (1200/Math.max(1,wpm)), charGap: 3*(1200/Math.max(1,wpm)), wordGap: 7*(1200/Math.max(1,wpm)) };
+
+    const now = performance.now();
+    if (rxLastEdgeTs == null) rxLastEdgeTs = now;
+
+    const sig = await port.getSignals();
+    const dsr = !!(sig.dataSetReady || sig.dsr); // Chrome reports dataSetReady
+
+    // ----- edge detection (DOWN->UP gives a symbol duration) -----
+    const prev = lastDSR;
+    if (prev !== null && prev !== dsr){
+      const dur = now - rxLastEdgeTs;
+
+      if (prev === true){        // key was DOWN, we just released -> measure tone length
+        // dot vs dash threshold ~ 2 dits (midpoint between 1 and 3)
+        const sym = (dur < (2 * t.dit)) ? '.' : '-';
+        rxPattern += sym;
+      } else {
+        // prev was UP, we just pressed; we handle gaps continuously below
+      }
+      rxLastEdgeTs = now;
+    }
+
+    // ----- continuous gap handling (commit char / word) -----
+    if (!dsr){ // key UP (silence)
+      const gap = now - rxLastEdgeTs;
+      const charThresh = (t.charGap + t.intra) / 2;      // between element gap and char gap
+      const wordThresh = (t.wordGap + t.charGap) / 2;    // between char gap and word gap
+
+      if (rxPattern && gap >= charThresh){
+        commitCharFromPattern();                         // finish the character
+      }
+      if (gap >= wordThresh){
+        ensureWordSpace();                               // add one space max
+      }
+    } else {
+      // key DOWN: we're inside a tone; no spacing decisions here
+      rxLastGapWordAdded = false;                        // allow a space after this tone ends
+    }
+
+    // ----- existing UI updates / loopback (unchanged) -----
+    if (lastDSR !== dsr){
+      lastDSR = dsr;
+      if (dsr){ ledEl.classList.add('on'); keyStateEl.textContent = 'Key: DOWN'; }
+      else    { ledEl.classList.remove('on'); keyStateEl.textContent = 'Key: UP'; }
+      if (document.getElementById('loopToSounder')?.checked){
+        if (dsr) await rtsDown(); else await rtsUp();
+      }
+    }
+  } catch(e){ /* ignore transient errors */ }
+
+  // Sampling rate (edge timing): 10ms is nicer for 20WPM dits (~60ms)
+  await sleep(10);
+}
+
+  log('Key monitor stopped','•');
+}
+
+// --- Tabs: switch between Trainer and Transmit (left column) ---
+function showTrainer(){
+  const a = document.getElementById('card-trainer');
+  const b = document.getElementById('card-transmit');
+  if (a) a.hidden = false;
+  if (b) b.hidden = true;
+  monitorRunning = false; // stop DSR polling when leaving Transmit
+  // update tab aria-selected
+  document.getElementById('tabTrainer')?.setAttribute('aria-selected','true');
+  document.getElementById('tabTransmit')?.setAttribute('aria-selected','false');
+  document.getElementById('tabTrainer2')?.setAttribute('aria-selected','true');
+  document.getElementById('tabTransmit2')?.setAttribute('aria-selected','false');
+}
+
+function showTransmit(){
+  const a = document.getElementById('card-trainer');
+  const b = document.getElementById('card-transmit');
+  if (a) a.hidden = true;
+  if (b) b.hidden = false;
+  startMonitor(); // begin DSR polling when entering Transmit
+  // update tab aria-selected
+  document.getElementById('tabTrainer')?.setAttribute('aria-selected','false');
+  document.getElementById('tabTransmit')?.setAttribute('aria-selected','true');
+  document.getElementById('tabTrainer2')?.setAttribute('aria-selected','false');
+  document.getElementById('tabTransmit2')?.setAttribute('aria-selected','true');
+}
+// wire both tab bars
+document.getElementById('tabTrainer') ?.addEventListener('click', showTrainer);
+document.getElementById('tabTransmit')?.addEventListener('click', showTransmit);
+document.getElementById('tabTrainer2')?.addEventListener('click', showTrainer);
+document.getElementById('tabTransmit2')?.addEventListener('click', showTransmit);
+
+document.getElementById('rxClear')?.addEventListener('click', ()=>{
+  const rxEl = document.getElementById('rxText');
+  if (rxEl) rxEl.value = '';
+  rxPattern = '';
+  rxLastGapWordAdded = false;
+});
 
 
 // Dark mode stuff
