@@ -206,7 +206,7 @@ $('#btnStop').addEventListener('click', ()=>{ stopFlag = true; rtsUp(); log('Tes
     sel.value = '1';
   }
 })();
-// ===================== Grading Mechanism =====================
+// ===================== Common Grading Components =====================
 // Grading (compare operator input to hidden preview)
 // Gives a percentage - specifically ignores case
 function normalizeForGrade(s){
@@ -233,6 +233,7 @@ function levenshtein(a,b){
   }
   return dp[n];
 }
+// ===================== RX Grading Mechanism =====================
 function gradeNow(){
   const answerEl = document.getElementById('preview');
   const inputEl  = document.getElementById('operatorInput');
@@ -252,6 +253,27 @@ function gradeNow(){
     `Score: ${score}% (${correct}/${A.length})`;
 }
 document.getElementById('btnGrade').addEventListener('click', gradeNow);
+
+// ===================== TX Grading Mechanism =====================
+function gradeTxNow(){
+  const target = document.getElementById('txPreview')?.textContent || '';
+  const keyed  = document.getElementById('rxText')?.value || '';
+
+  const A = normalizeForGrade(target);  // expected text (from Trainer lesson)
+  const B = normalizeForGrade(keyed);   // what operator keyed (decoded from DSR)
+
+  let correct = 0;
+  for (let i = 0; i < A.length; i++) {
+    if (B[i] === A[i]) correct++;   // exact position match; spaces included
+  }
+  const total = Math.max(1, A.length);
+  const score = Math.round((correct / total) * 100);
+
+  const out = document.getElementById('txGradeResult');
+  if (out) out.textContent = `Score: ${score}% (${correct}/${A.length})`;
+}
+
+document.getElementById('txGrade')?.addEventListener('click', gradeTxNow);
 
 // Initial preview
 regenerate();
@@ -398,8 +420,8 @@ async function startMonitor(){
     // ----- existing UI updates / loopback (unchanged) -----
     if (lastDSR !== dsr){
       lastDSR = dsr;
-      if (dsr){ ledEl.classList.add('on'); keyStateEl.textContent = 'Key: DOWN'; }
-      else    { ledEl.classList.remove('on'); keyStateEl.textContent = 'Key: UP'; }
+      if (dsr){ ledEl.classList.add('on'); keyStateEl.textContent = 'Key: Closed'; }
+      else    { ledEl.classList.remove('on'); keyStateEl.textContent = 'Key: Open'; }
       if (document.getElementById('loopToSounder')?.checked){
         if (dsr) await rtsDown(); else await rtsUp();
       }
@@ -412,6 +434,23 @@ async function startMonitor(){
 
   log('Key monitor stopped','•');
 }
+
+// ===================== Transmit Target Fillout =====================
+
+// Mirror Trainer's preview (#preview) into Transmit's target box (#txPreview)
+function syncTxPreviewFromTrainer(){
+  const src = document.getElementById('preview')?.textContent || '';
+  const dst = document.getElementById('txPreview');
+  if (dst) dst.textContent = src;
+}
+
+// Keep it synced on load, when generating, and when switching to Transmit
+document.addEventListener('DOMContentLoaded', syncTxPreviewFromTrainer);
+document.getElementById('btnGenerate')?.addEventListener('click', syncTxPreviewFromTrainer);
+document.getElementById('lesson')?.addEventListener('input', syncTxPreviewFromTrainer);
+document.getElementById('groups')?.addEventListener('input', syncTxPreviewFromTrainer);
+document.getElementById('groupLen')?.addEventListener('input', syncTxPreviewFromTrainer);
+
 
 // ===================== UI Tab functionality =====================
 function showTrainer(){
@@ -438,6 +477,15 @@ function showTransmit(){
   document.getElementById('tabTransmit')?.setAttribute('aria-selected','true');
   document.getElementById('tabTrainer2')?.setAttribute('aria-selected','false');
   document.getElementById('tabTransmit2')?.setAttribute('aria-selected','true');
+
+  // Refresh the lesson data in the TX tab
+if (typeof showTransmit === 'function') {
+  const _oldShowTransmit = showTransmit;
+  showTransmit = function(){
+    _oldShowTransmit();
+    syncTxPreviewFromTrainer(); // ensure the target is up to date when tab opens
+  };
+}
 }
 // wire both tab bars
 document.getElementById('tabTrainer') ?.addEventListener('click', showTrainer);

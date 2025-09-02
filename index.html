@@ -32,13 +32,13 @@
 .tab[aria-selected="true"] { background:#fff; border:1px solid #e5e7eb; border-bottom-color:#fff; }
 .panel[hidden] { display:none; }
 
-.led { width: 42px; height: 42px; border-radius: 999px; background:#94a3b8;
-       box-shadow: inset 0 0 0 2px #cbd5e1;
+.led { width: 42px; height: 42px; border-radius: 999px; background:#282b30;
+       box-shadow: inset 0 0 0 2px #565a5f;
        transition: background .06s linear, box-shadow .06s linear, transform .06s ease; }
 .led.on { background:#22c55e; box-shadow: 0 0 18px rgba(34,197,94,.65), inset 0 0 0 2px #16a34a;
           transform: scale(1.02); }
 
-
+          
 /* Dark mode settings */
 :root[data-theme="dark"] body { background:#0b1020; color:#e5e7eb; }
 :root[data-theme="dark"] .card { background:#0f172a; border-color:#1e293b; box-shadow: 0 6px 24px rgba(0,0,0,.4); }
@@ -82,8 +82,8 @@
           <label>Lesson
             <select id="lesson" class="sel" style="width:90px"></select>
           </label>
-          <label>Words <input id="groups" class="input" type="number" min="1" value="20" style="width:90px"/></label>
-          <label>Letters per word <input id="groupLen" class="input" type="number" min="2" max="6" value="5" style="width:110px"/></label>
+          <label>Words <input id="groups" class="input" type="number" min="1" value="20" style="width:40px"/></label>
+          <label>Letters/word <input id="groupLen" class="input" type="number" min="2" max="6" value="5" style="width:40px"/></label>
         </div>
         <div class="row">
           <label>WPM <input id="wpm" class="input" type="number" min="5" max="40" value="20" style="width:90px"/></label>
@@ -123,41 +123,49 @@
   <div class="row">
     <div id="led" class="led" title="Key state"></div>
     <div>
-      <div class="mono" id="keyState">Key: UP</div>
+      <div class="mono" id="keyState">Key: Open</div>
       <!-- Hid the line below, was cluttering the UI and info is in doco -->
       <!-- <div class="hint">Input: DSR (pin 6), common: DTR (pin 4)</div> -->
-       
+       <label class="hint"><input type="checkbox" id="loopToSounder" />
+      Enable local sounder
     </div>
   </div>
-
+<!-- OLD style checkbox below key status, less clutter
   <div class="row" style="margin-top:8px;">
     <label class="hint"><input type="checkbox" id="loopToSounder" />
       Enable local sounder loopback
     </label>
-    
-  </div>
+      </div>
+  -->
   <div style="height: var(--gap);"></div>
+<!-- TARGET TEXT TO KEY (mirrors Trainer lesson) -->
+<div id="txTrainerBox" style="margin-top:8px;">
+  <div class="hint" style="margin-bottom:6px;">Target text:</div>
+  <div id="txPreview" class="preview mono"></div>
+
+</div>
 
   <!-- Decoder UI (DSR → text) -->
 <div style="margin-top:8px;">
   <div class="hint" style="margin-bottom:6px;">Decoded text:</div>
-  <textarea id="rxText" class="input mono" readonly style="width:95%;height:120px;"></textarea>
+  <textarea id="rxText" class="input mono" placeholder="Attempt to transmit the lesson above or just practice sending..." readonly style="width:95%;height:120px;"></textarea>
   <div class="row" style="margin-top:6px;">
     <button id="rxClear" class="btn secondary">Clear</button>
+       <button id="txGrade" class="btn secondary">Grade</button>
+    <span id="txGradeResult" class="hint"></span>
+   
   </div>
   <div style="height: var(--gap);"></div>
 
   <div class="hint" style="margin-top:6px; flex-basis:100%;">
-  Uses WPM settings from the Trainer tab. Please adjust there.
+  Uses lesson settings from the Receive tab.
+</div>
+</div>
 </div>
 
-</div>
-
-</div>
-
-    <!-- CONNECTION SETTINGS -->
+    <!-- SERIAL CONNECTION SETTINGS -->
     <div class="card connection">
-      <h3 style="margin-top:0;">Connection Settings</h3>
+      <h3 style="margin-top:0;">Serial Port Settings</h3>
       <div class="row">
         <button id="btnConnect" class="btn">Connect</button>
         <button id="btnDisconnect" class="btn secondary" disabled>Disconnect</button>
@@ -165,7 +173,7 @@
       </div>
  <div class="row">
   <details>
-    <summary>Advanced</summary>
+    <summary>Advanced Settings</summary>
     <div style="margin-top:8px;">
       <label>Baud
         <select id="baud" class="sel">
@@ -175,13 +183,14 @@
           <option>19200</option>
           <option>4800</option>
         </select>
-      </label>
+      </label><br>
+       <label class="hint"><input type="checkbox" id="invert" />Invert sounder pins</label>
     </div>
   </details>
-
-  <label class="hint"><input type="checkbox" id="invert" />Invert serial pins</label>
-  <button id="btnDit" class="btn secondary">Test Dit</button>
+ <div class="row" style="flex-basis:100%;">
+   <button id="btnDit" class="btn secondary">Test Dit</button>
   <button id="btnDah" class="btn secondary">Test Dah</button>
+  </div>
 </div></div>
       
       <!-- CONSOLE -->
