@@ -89,6 +89,8 @@
           <label>WPM <input id="wpm" class="input" type="number" min="5" max="40" value="20" style="width:90px"/></label>
           <label>Effective WPM <input id="effWpm" class="input" type="number" min="5" max="20" value="12" style="width:130px"/></label>
         </div>
+
+
         <div class="row">
           <button id="btnStart" class="btn go">Begin lesson</button>
           <button id="btnStop" class="btn danger" disabled>Abort</button>
@@ -166,6 +168,15 @@
     <!-- SERIAL CONNECTION SETTINGS -->
     <div class="card connection">
       <h3 style="margin-top:0;">Serial Port Settings</h3>
+<div class="row">
+  <fieldset class="hint" style="border:0; margin:0; padding:0; display:flex; flex-direction:row; align-items:center; gap:12px;">
+    <legend class="hint" style="font-weight:600; margin-right:8px;">Output Mode</legend>
+    <label><input type="radio" name="outputMode" id="modeHardware" value="hardware" checked> Hardware</label>
+    <label><input type="radio" name="outputMode" id="modeSoftware" value="software"> Software</label>
+  </fieldset>
+  <legend class="hint" style="font-weight:200; margin-right:8px;">Software mode simulates sounder audio.</legend>
+</div>
+<div style="height:12px;"></div>
       <div class="row">
         <button id="btnConnect" class="btn">Connect</button>
         <button id="btnDisconnect" class="btn secondary" disabled>Disconnect</button>
@@ -191,6 +202,7 @@
    <button id="btnDit" class="btn secondary">Test Dit</button>
   <button id="btnDah" class="btn secondary">Test Dah</button>
   </div>
+  
 </div></div>
       
       <!-- CONSOLE -->

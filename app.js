@@ -22,6 +22,21 @@ function randomGroups(lesson, groups, groupLen){
   return out.join(' ');
 }
 
+// ===== Software sounder playback (no-serial mode) =====
+function softwareMode(){
+  return document.getElementById('modeSoftware')?.checked === true;
+}
+const __sndClick = new Audio('click.wav');
+const __sndClack = new Audio('clack.wav');
+__sndClick.preload = 'auto';
+__sndClack.preload = 'auto';
+function playOnce(a){
+  // clone to allow rapid overlaps
+  const n = a.cloneNode();
+  n.play().catch(()=>{ /* ignore autoplay restrictions; user will have interacted */ });
+}
+
+
 // ===================== Web Serial Stuff =====================
 let port, reader, writer;
 const $ = s => document.querySelector(s);
@@ -82,8 +97,25 @@ async function disconnect(){
 // ===================== Morse keying on RTS =====================
 // Invert handling (active-low drivers or cooked wiring) - it happens!
 function invertOut(){ return $('#invert').checked; }
-async function rtsDown(){ try{ await port.setSignals({ requestToSend: !invertOut() }); }catch(e){ console.warn(e); } }
-async function rtsUp(){   try{ await port.setSignals({ requestToSend:  invertOut() }); }catch(e){ console.warn(e); } }
+async function rtsDown(){
+  if (softwareMode()){
+    // sounder closed
+    playOnce(__sndClick);
+    return;
+  }
+  try{ await port.setSignals({ requestToSend: !invertOut() }); }catch(e){ console.warn(e); }
+}
+async function rtsUp(){
+  if (softwareMode()){
+    // sounder opened
+    playOnce(__sndClack);
+    return;
+  }
+  try{ await port.setSignals({ requestToSend:  invertOut() }); }catch(e){ console.warn(e); }
+}
+// ===================== Old lines for hardware only =====================
+//async function rtsDown(){ try{ await port.setSignals({ requestToSend: !invertOut() }); }catch(e){ console.warn(e); } }
+//async function rtsUp(){   try{ await port.setSignals({ requestToSend:  invertOut() }); }catch(e){ console.warn(e); } }
 
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 function ditMs(wpm){ return 1200 / Math.max(1,wpm); } // standard
@@ -173,7 +205,9 @@ $('#groups').addEventListener('input', regenerate);
 $('#groupLen').addEventListener('input', regenerate);
 
 $('#btnStart').addEventListener('click', async ()=>{
-  if(!port){ alert('Connect serial first.'); return; }
+  // ======= dead hardware only line \/ =======
+  //if(!port){ alert('Connect serial first.'); return; }
+  if(!port && !softwareMode()){ alert('Connect serial first.'); return; }
   const wpm = parseInt($('#wpm').value,10)||20;
   const eff = parseInt($('#effWpm').value,10)||12;
   const text = ($('#preview').textContent.trim() || randomGroups(parseInt($('#lesson').value,10), parseInt($('#groups').value,10), parseInt($('#groupLen').value,10)));
@@ -281,7 +315,9 @@ regenerate();
 // ===================== Character Player =====================
 // Play a single character using set timing
 async function playChar(ch){
-  if(!port){ alert('Connect serial first.'); return; }
+  // ======= dead hardware only line \/ =======
+  // if(!port){ alert('Connect serial first.'); return; }
+  if(!port && !softwareMode()){ alert('Connect serial first.'); return; }
   const wpm = parseInt($('#wpm').value,10) || 20;
   const eff = parseInt($('#effWpm').value,10) || wpm;
   const t = timings(wpm, eff);
